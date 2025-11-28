@@ -61,6 +61,21 @@ impl ParserConfig {
     }
 }
 
+pub struct Pipeline {
+    file_path: String,
+}
+
+impl Pipeline {
+    pub fn new_with_params(file_path: String) -> Self {
+        Self { file_path }
+    }
+    pub fn run(&self) -> Result<(), PipelineError> {
+        let _config = ParserConfig::parse_from_file(self.file_path.as_str())?;
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
