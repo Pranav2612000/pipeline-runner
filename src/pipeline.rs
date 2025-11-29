@@ -1,5 +1,6 @@
 use crate::error::PipelineError;
 use crate::error::PipelineError::{ConfigFileNotReadable, ParsingError};
+use crate::executor::Executor;
 use crate::job::JobConfig;
 
 #[derive(Debug, PartialEq)]
@@ -70,7 +71,14 @@ impl Pipeline {
         Self { file_path }
     }
     pub fn run(&self) -> Result<(), PipelineError> {
-        let _config = ParserConfig::parse_from_file(self.file_path.as_str())?;
+        let config = ParserConfig::parse_from_file(self.file_path.as_str())?;
+
+        let executor = Executor::new_with_params(None);
+        for job in config.jobs {
+            if let Err(err) = executor.run(&job) {
+                println!("{} job failed| {}", job.name, err);
+            }
+        }
 
         Ok(())
     }

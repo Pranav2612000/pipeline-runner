@@ -7,4 +7,7 @@ pub enum PipelineError {
 
     #[error("Failed to parse config: {0}")]
     ParsingError(String),
+
+    #[error("Failed to execute job {0}| Reason: {1}")]
+    ExecutionError(String, String),
 }

@@ -1,4 +1,5 @@
 mod error;
+mod executor;
 mod job;
 mod pipeline;
 

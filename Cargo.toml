@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-serde_yml = "0.0.12"
-thiserror = "2.0.17"
 clap = { version = "4.5.53", features = ["derive"] }
+serde_yml = "0.0.12"
+subprocess = "0.2.9"
+thiserror = "2.0.17"
 
