@@ -8,11 +8,12 @@ use crate::job::JobConfig;
 #[derive(Debug, PartialEq)]
 pub struct ParserConfig {
     jobs: Vec<JobConfig>,
+    stages: Option<Vec<String>>,
 }
 
 impl ParserConfig {
-    pub fn new_with_params(jobs: Vec<JobConfig>) -> Self {
-        Self { jobs }
+    pub fn new_with_params(jobs: Vec<JobConfig>, stages: Option<Vec<String>>) -> Self {
+        Self { jobs, stages }
     }
 
     pub fn parse_from_file(file_path: &str) -> Result<Self, PipelineError> {
@@ -29,11 +30,25 @@ impl ParserConfig {
         };
 
         let mut jobs = Vec::new();
+        let mut stages = None;
         for (name, job_value) in jobs_value.iter() {
             let serde_yml::Value::String(name) = name else {
                 return Err(ParsingError("name should be a string".to_string()));
             };
             if name.as_str() == "stages" {
+                let serde_yml::Value::Sequence(stages_val) = job_value else {
+                    return Err(ParsingError("stages should be a sequence".to_string()));
+                };
+
+                let mut stages_arr = vec![];
+                for stages_elem_val in stages_val.iter() {
+                    let serde_yml::Value::String(elem) = stages_elem_val else {
+                        return Err(ParsingError("stage should be a string".to_string()));
+                    };
+                    stages_arr.push(elem.to_string());
+                }
+
+                stages = Some(stages_arr);
                 continue;
             }
 
@@ -74,7 +89,7 @@ impl ParserConfig {
                 JobConfig::new_with_params(name.to_string(), image.to_string(), stage, script);
             jobs.push(job);
         }
-        Ok(Self { jobs })
+        Ok(Self::new_with_params(jobs, stages))
     }
 }
 
@@ -100,14 +115,26 @@ impl Pipeline {
 
         let executor = Executor::new_with_params(None);
         let jobs_by_stage = Self::get_jobs_by_stage(config.jobs);
-        for (stage, job) in jobs_by_stage {
-            if let Some(stage) = stage {
-                println!("Executing {}", stage);
-            }
+        if let Some(stages) = config.stages {
+            for stage in stages {
+                println!("Executing {}", &stage);
+                let Some(job) = jobs_by_stage.get(&Some(stage.clone())) else {
+                    println!("No jobs for stage {}. Continuing...", &stage);
+                    continue;
+                };
 
-            if let Err(err) = executor.run(&job) {
-                println!("{} job failed| {}", job.name, err);
+                if let Err(err) = executor.run(&job) {
+                    println!("{} job failed| {}", job.name, err);
+                }
             }
+        } else {
+            if let Some(job) = jobs_by_stage.get(&None) {
+                println!("Executing without a stage");
+
+                if let Err(err) = executor.run(&job) {
+                    println!("{} job failed| {}", job.name, err);
+                }
+            };
         }
 
         Ok(())
