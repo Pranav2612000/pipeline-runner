@@ -134,10 +134,10 @@ impl Pipeline {
 
     async fn run_internal(config: ParserConfig) {
         let jobs_by_stage = Self::get_jobs_by_stage(config.jobs);
-        let mut jobs_set = tokio::task::JoinSet::new();
         if let Some(stages) = config.stages {
             for stage in stages {
                 println!("Executing {}", &stage);
+                let mut jobs_set = tokio::task::JoinSet::new();
                 let Some(jobs) = jobs_by_stage.get(&Some(stage.clone())) else {
                     println!("No jobs for stage {}. Continuing...", &stage);
                     continue;
@@ -146,18 +146,19 @@ impl Pipeline {
                 for job in jobs {
                     jobs_set.spawn(Self::execute_job(job.clone()));
                 }
+                jobs_set.join_all().await;
             }
         } else {
             if let Some(jobs) = jobs_by_stage.get(&None) {
                 println!("Executing without a stage");
+                let mut jobs_set = tokio::task::JoinSet::new();
 
                 for job in jobs {
                     jobs_set.spawn(Self::execute_job(job.clone()));
                 }
+                jobs_set.join_all().await;
             };
         }
-
-        jobs_set.join_all().await;
     }
 
     pub fn run(&self) -> Result<(), PipelineError> {

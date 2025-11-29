@@ -1,0 +1,27 @@
+# pipeline.yml
+stages:
+  - build
+  - test
+
+build-job:
+  stage: build
+  image: python:3.11
+  script:
+    - echo "Building..."
+    - sleep 2
+
+unit-tests:
+  stage: test
+  image: python:3.11
+  script:
+    - echo "Running unit tests..."
+    - sleep 3
+    - echo "Unit tests passed!"
+
+integration-tests:
+  stage: test
+  image: python:3.11
+  script:
+    - echo "Running integration tests..."
+    - sleep 3
+    - echo "Integration tests passed!"
