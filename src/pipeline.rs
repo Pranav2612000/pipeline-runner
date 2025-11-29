@@ -47,10 +47,14 @@ impl ParserConfig {
                 return Err(ParsingError("name should be a string".to_string()));
             };
 
-            let serde_yml::Value::String(stage) =
-                job_value.get("stage").unwrap_or(&serde_yml::Value::Null)
-            else {
-                return Err(ParsingError("stage should be a string".to_string()));
+            let stage = if let Some(stage) = job_value.get("stage") {
+                let serde_yml::Value::String(stage) = stage else {
+                    return Err(ParsingError("stage should be a string".to_string()));
+                };
+
+                Some(stage.to_string())
+            } else {
+                None
             };
 
             let mut script = vec![];
@@ -66,12 +70,8 @@ impl ParserConfig {
                 script.push(elem.to_string());
             }
 
-            let job = JobConfig::new_with_params(
-                name.to_string(),
-                image.to_string(),
-                stage.to_string(),
-                script,
-            );
+            let job =
+                JobConfig::new_with_params(name.to_string(), image.to_string(), stage, script);
             jobs.push(job);
         }
         Ok(Self { jobs })
@@ -86,7 +86,7 @@ impl Pipeline {
     pub fn new_with_params(file_path: String) -> Self {
         Self { file_path }
     }
-    fn get_jobs_by_stage(jobs: Vec<JobConfig>) -> HashMap<String, JobConfig> {
+    fn get_jobs_by_stage(jobs: Vec<JobConfig>) -> HashMap<Option<String>, JobConfig> {
         let mut jobs_by_stage = HashMap::new();
 
         for job in jobs {
@@ -101,7 +101,10 @@ impl Pipeline {
         let executor = Executor::new_with_params(None);
         let jobs_by_stage = Self::get_jobs_by_stage(config.jobs);
         for (stage, job) in jobs_by_stage {
-            println!("Executing {}", stage);
+            if let Some(stage) = stage {
+                println!("Executing {}", stage);
+            }
+
             if let Err(err) = executor.run(&job) {
                 println!("{} job failed| {}", job.name, err);
             }
