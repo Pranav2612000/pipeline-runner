@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
+use tokio::runtime::Runtime;
+
 use crate::error::PipelineError;
-use crate::error::PipelineError::{ConfigFileNotReadable, ParsingError};
+use crate::error::PipelineError::{ConfigFileNotReadable, ParsingError, RuntimeError};
 use crate::executor::Executor;
 use crate::job::JobConfig;
 
@@ -110,11 +112,25 @@ impl Pipeline {
 
         jobs_by_stage
     }
-    pub fn run(&self) -> Result<(), PipelineError> {
-        let config = ParserConfig::parse_from_file(self.file_path.as_str())?;
 
-        let executor = Executor::new_with_params(None);
+    async fn execute_job(job: JobConfig) {
+        let job_name = job.name.clone();
+        if let Err(e) = tokio::task::spawn_blocking(|| {
+            let executor = Executor::new_with_params(None);
+            let job = job;
+            if let Err(err) = executor.run(&job) {
+                println!("{} job failed| {}", job.name, err);
+            }
+        })
+        .await
+        {
+            println!("{} job failed| {}", job_name, e);
+        }
+    }
+
+    async fn run_internal(config: ParserConfig) {
         let jobs_by_stage = Self::get_jobs_by_stage(config.jobs);
+        let mut jobs_set = tokio::task::JoinSet::new();
         if let Some(stages) = config.stages {
             for stage in stages {
                 println!("Executing {}", &stage);
@@ -123,20 +139,23 @@ impl Pipeline {
                     continue;
                 };
 
-                if let Err(err) = executor.run(&job) {
-                    println!("{} job failed| {}", job.name, err);
-                }
+                jobs_set.spawn(Self::execute_job(job.clone()));
             }
         } else {
             if let Some(job) = jobs_by_stage.get(&None) {
                 println!("Executing without a stage");
 
-                if let Err(err) = executor.run(&job) {
-                    println!("{} job failed| {}", job.name, err);
-                }
+                jobs_set.spawn(Self::execute_job(job.clone()));
             };
         }
 
+        jobs_set.join_all().await;
+    }
+
+    pub fn run(&self) -> Result<(), PipelineError> {
+        let rt = Runtime::new().map_err(|e| RuntimeError(e.to_string()))?;
+        let config = ParserConfig::parse_from_file(self.file_path.as_str())?;
+        rt.block_on(async { Self::run_internal(config).await });
         Ok(())
     }
 }

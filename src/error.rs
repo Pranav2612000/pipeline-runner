@@ -10,4 +10,7 @@ pub enum PipelineError {
 
     #[error("Failed to execute job {0}| Reason: {1}")]
     ExecutionError(String, String),
+
+    #[error("Failed to start runtime {0}")]
+    RuntimeError(String),
 }
