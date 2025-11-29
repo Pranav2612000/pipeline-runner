@@ -31,6 +31,9 @@ impl ParserConfig {
             let serde_yml::Value::String(name) = name else {
                 return Err(ParsingError("name should be a string".to_string()));
             };
+            if name.as_str() == "stages" {
+                continue;
+            }
 
             let serde_yml::Value::Mapping(job_value) = job_value else {
                 return Err(ParsingError("Each job should be a map".to_string()));
