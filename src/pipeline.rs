@@ -103,11 +103,15 @@ impl Pipeline {
     pub fn new_with_params(file_path: String) -> Self {
         Self { file_path }
     }
-    fn get_jobs_by_stage(jobs: Vec<JobConfig>) -> HashMap<Option<String>, JobConfig> {
+    fn get_jobs_by_stage(jobs: Vec<JobConfig>) -> HashMap<Option<String>, Vec<JobConfig>> {
         let mut jobs_by_stage = HashMap::new();
 
         for job in jobs {
-            jobs_by_stage.insert(job.stage.clone(), job);
+            let stage = job.stage.clone();
+            let entry = jobs_by_stage.entry(stage);
+            entry
+                .and_modify(|v: &mut Vec<JobConfig>| v.push(job.clone()))
+                .or_insert(vec![job.clone()]);
         }
 
         jobs_by_stage
@@ -134,18 +138,22 @@ impl Pipeline {
         if let Some(stages) = config.stages {
             for stage in stages {
                 println!("Executing {}", &stage);
-                let Some(job) = jobs_by_stage.get(&Some(stage.clone())) else {
+                let Some(jobs) = jobs_by_stage.get(&Some(stage.clone())) else {
                     println!("No jobs for stage {}. Continuing...", &stage);
                     continue;
                 };
 
-                jobs_set.spawn(Self::execute_job(job.clone()));
+                for job in jobs {
+                    jobs_set.spawn(Self::execute_job(job.clone()));
+                }
             }
         } else {
-            if let Some(job) = jobs_by_stage.get(&None) {
+            if let Some(jobs) = jobs_by_stage.get(&None) {
                 println!("Executing without a stage");
 
-                jobs_set.spawn(Self::execute_job(job.clone()));
+                for job in jobs {
+                    jobs_set.spawn(Self::execute_job(job.clone()));
+                }
             };
         }
 
