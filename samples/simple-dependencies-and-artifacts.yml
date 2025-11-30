@@ -1,0 +1,48 @@
+stages:
+  - build
+  - test
+  - deploy
+
+build-app:
+  stage: build
+  image: python:3.11
+  script:
+    - echo "Building application..."
+    - mkdir -p dist
+    - echo "app-v1.0.0" > dist/app.txt
+    - echo "Build complete!"
+  artifacts:
+    paths:
+      - dist/
+
+unit-tests:
+  stage: test
+  image: python:3.11
+  needs:
+    - build-app
+  script:
+    - echo "Running unit tests..."
+    - ls -la dist/
+    - cat dist/app.txt
+    - echo "Tests passed!"
+
+integration-tests:
+  stage: test
+  image: python:3.11
+  needs:
+    - build-app
+  script:
+    - echo "Running integration tests..."
+    - cat dist/app.txt
+    - echo "Integration tests passed!"
+
+deploy-prod:
+  stage: deploy
+  image: alpine:latest
+  needs:
+    - unit-tests
+    - integration-tests
+  script:
+    - echo "Deploying to production..."
+    - cat dist/app.txt
+    - echo "Deployed!"

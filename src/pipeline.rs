@@ -74,6 +74,24 @@ impl ParserConfig {
                 None
             };
 
+            let needs = if let Some(needs_val) = job_value.get("needs") {
+                let serde_yml::Value::Sequence(needs_arr) = needs_val else {
+                    return Err(ParsingError("needs should be a sequence".to_string()));
+                };
+
+                let mut needs = vec![];
+                for needs_elem_val in needs_arr.iter() {
+                    let serde_yml::Value::String(elem) = needs_elem_val else {
+                        return Err(ParsingError("name should be a string".to_string()));
+                    };
+                    needs.push(elem.to_string());
+                }
+
+                Some(needs)
+            } else {
+                None
+            };
+
             let mut script = vec![];
             let serde_yml::Value::Sequence(script_val) =
                 job_value.get("script").unwrap_or(&serde_yml::Value::Null)
@@ -87,8 +105,13 @@ impl ParserConfig {
                 script.push(elem.to_string());
             }
 
-            let job =
-                JobConfig::new_with_params(name.to_string(), image.to_string(), stage, script);
+            let job = JobConfig::new_with_params(
+                name.to_string(),
+                image.to_string(),
+                stage,
+                script,
+                needs,
+            );
             jobs.push(job);
         }
         Ok(Self::new_with_params(jobs, stages))
@@ -179,6 +202,9 @@ mod tests {
         let config = r#"
 build-job:
   image: python:3.11
+  needs:
+    - unit-tests
+    - integration-tests
   script:
     - echo "Building application..."
     - python --version
@@ -188,16 +214,24 @@ build-job:
         let parser_config = ParserConfig::parse_str(config).expect("parsing should suceed");
         assert_eq!(
             parser_config,
-            ParserConfig::new_with_params(vec![JobConfig {
-                name: "build-job".to_string(),
-                image: "python:3.11".to_string(),
-                script: vec![
-                    "echo \"Building application...\"".to_string(),
-                    "python --version".to_string(),
-                    "pip install --quiet build".to_string(),
-                    "echo \"Build complete!\"".to_string(),
-                ],
-            }])
+            ParserConfig::new_with_params(
+                vec![JobConfig {
+                    name: "build-job".to_string(),
+                    image: "python:3.11".to_string(),
+                    script: vec![
+                        "echo \"Building application...\"".to_string(),
+                        "python --version".to_string(),
+                        "pip install --quiet build".to_string(),
+                        "echo \"Build complete!\"".to_string(),
+                    ],
+                    stage: None,
+                    needs: Some(vec![
+                        "unit-tests".to_string(),
+                        "integration-tests".to_string()
+                    ]),
+                }],
+                None
+            )
         );
     }
 
@@ -208,16 +242,21 @@ build-job:
             ParserConfig::parse_from_file(file_path).expect("parsing should suceed");
         assert_eq!(
             parser_config,
-            ParserConfig::new_with_params(vec![JobConfig {
-                name: "build-job".to_string(),
-                image: "python:3.11".to_string(),
-                script: vec![
-                    "echo \"Building application...\"".to_string(),
-                    "python --version".to_string(),
-                    "pip install --quiet build".to_string(),
-                    "echo \"Build complete!\"".to_string(),
-                ],
-            }])
+            ParserConfig::new_with_params(
+                vec![JobConfig {
+                    name: "build-job".to_string(),
+                    image: "python:3.11".to_string(),
+                    script: vec![
+                        "echo \"Building application...\"".to_string(),
+                        "python --version".to_string(),
+                        "pip install --quiet build".to_string(),
+                        "echo \"Build complete!\"".to_string(),
+                    ],
+                    stage: None,
+                    needs: None,
+                }],
+                None
+            )
         );
     }
 }
