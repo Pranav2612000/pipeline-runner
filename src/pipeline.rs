@@ -140,6 +140,15 @@ impl Pipeline {
         jobs_by_stage
     }
 
+    fn get_execution_order(jobs: Vec<&JobConfig>) -> Vec<Vec<&JobConfig>> {
+        let mut execution_order = vec![];
+        for job in jobs {
+            execution_order.push(vec![job]);
+        }
+
+        execution_order
+    }
+
     async fn execute_job(job: JobConfig) {
         let job_name = job.name.clone();
         if let Err(e) = tokio::task::spawn_blocking(|| {
@@ -166,8 +175,10 @@ impl Pipeline {
                     continue;
                 };
 
-                for job in jobs {
-                    jobs_set.spawn(Self::execute_job(job.clone()));
+                for parallel_jobs in Self::get_execution_order(jobs.iter().collect()) {
+                    for job in parallel_jobs {
+                        jobs_set.spawn(Self::execute_job(job.clone()));
+                    }
                 }
                 jobs_set.join_all().await;
             }
