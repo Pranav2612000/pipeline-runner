@@ -219,20 +219,14 @@ impl Pipeline {
     }
 
     async fn run_internal(config: ParserConfig) {
+        let jobs = config.jobs.clone();
         let jobs_by_stage = Self::get_jobs_by_stage(config.jobs);
-        if let Some(stages) = config.stages {
-            for stage in stages {
-                println!("Executing {}", &stage);
+        if let Some(_stages) = config.stages {
+            let execution_order = Self::get_execution_order(jobs.iter().collect());
+            for parallel_jobs in execution_order {
                 let mut jobs_set = tokio::task::JoinSet::new();
-                let Some(jobs) = jobs_by_stage.get(&Some(stage.clone())) else {
-                    println!("No jobs for stage {}. Continuing...", &stage);
-                    continue;
-                };
-
-                for parallel_jobs in Self::get_execution_order(jobs.iter().collect()) {
-                    for job in parallel_jobs {
-                        jobs_set.spawn(Self::execute_job(job.clone()));
-                    }
+                for job in parallel_jobs {
+                    jobs_set.spawn(Self::execute_job(job.clone()));
                 }
                 jobs_set.join_all().await;
             }
