@@ -142,8 +142,62 @@ impl Pipeline {
 
     fn get_execution_order(jobs: Vec<&JobConfig>) -> Vec<Vec<&JobConfig>> {
         let mut execution_order = vec![];
+        let mut jobs_by_name = HashMap::new();
+        let mut graph = HashMap::new();
+        let mut job_names = vec![];
         for job in jobs {
-            execution_order.push(vec![job]);
+            let job_name = job.name.clone();
+            job_names.push(job_name.clone());
+            jobs_by_name.insert(job_name.clone(), job);
+
+            if let Some(ref needs) = job.needs {
+                for deps in needs {
+                    let entry = graph.entry(job_name.clone());
+                    entry
+                        .and_modify(|d: &mut Vec<String>| d.push(deps.clone()))
+                        .or_insert(vec![deps.clone()]);
+                }
+            }
+        }
+
+        while jobs_by_name.len() != 0 {
+            let mut runnable_jobs = vec![];
+
+            for curr_job_name in jobs_by_name.keys() {
+                let deps = graph.get(curr_job_name);
+
+                // This job has no dependencies, so we can run it now
+                if deps.is_none() {
+                    runnable_jobs.push(curr_job_name.clone());
+                } else if let Some(deps) = deps {
+                    if deps.len() == 0 {
+                        runnable_jobs.push(curr_job_name.clone());
+                    }
+                }
+            }
+
+            let mut parallel_jobs = vec![];
+            for runnable_job in runnable_jobs.iter() {
+                let job = jobs_by_name.remove(runnable_job).expect("should exist");
+                parallel_jobs.push(job);
+            }
+
+            parallel_jobs.sort_by(|a, b| a.name.cmp(&b.name));
+            execution_order.push(parallel_jobs);
+
+            for curr_job_name in job_names.iter() {
+                let deps = graph.get_mut(curr_job_name);
+
+                // Remove the runnable jobs from deps of other jobs
+                if let Some(deps) = deps {
+                    for runnable_job in runnable_jobs.iter() {
+                        let idx = deps.iter().position(|d| d == runnable_job);
+                        if let Some(idx) = idx {
+                            deps.remove(idx);
+                        }
+                    }
+                }
+            }
         }
 
         execution_order
@@ -268,6 +322,41 @@ build-job:
                 }],
                 None
             )
+        );
+    }
+
+    #[test]
+    fn test_execution_order() {
+        fn create_job_with_deps(job_name: String, deps: Option<Vec<String>>) -> JobConfig {
+            JobConfig {
+                name: job_name,
+                image: "python:3.11".to_string(),
+                script: vec![
+                    "echo \"Building application...\"".to_string(),
+                    "python --version".to_string(),
+                    "pip install --quiet build".to_string(),
+                    "echo \"Build complete!\"".to_string(),
+                ],
+                stage: None,
+                needs: deps,
+            }
+        }
+
+        let build_job = create_job_with_deps("build".to_string(), None);
+        let integration_test_job = create_job_with_deps(
+            "integration_test".to_string(),
+            Some(vec!["build".to_string()]),
+        );
+        let unit_test_job =
+            create_job_with_deps("unit_test".to_string(), Some(vec!["build".to_string()]));
+        let jobs = vec![&integration_test_job, &build_job, &unit_test_job];
+
+        assert_eq!(
+            Pipeline::get_execution_order(jobs),
+            vec![
+                vec![&build_job],
+                vec![&integration_test_job, &unit_test_job]
+            ]
         );
     }
 }
