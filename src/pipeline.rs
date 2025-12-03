@@ -91,6 +91,30 @@ impl ParserConfig {
             } else {
                 None
             };
+            let artifacts = if let Some(artifacts_val) = job_value.get("artifacts") {
+                let serde_yml::Value::Mapping(artifacts_val) = artifacts_val else {
+                    return Err(ParsingError("needs should be a sequence".to_string()));
+                };
+
+                let Some(artifacts_paths) = artifacts_val.get("paths") else {
+                    return Err(ParsingError("artifacts should have paths".to_string()));
+                };
+                let serde_yml::Value::Sequence(artifacts_paths) = artifacts_paths else {
+                    return Err(ParsingError("needs should be a sequence".to_string()));
+                };
+
+                let mut artifacts = vec![];
+                for val in artifacts_paths.iter() {
+                    let serde_yml::Value::String(elem) = val else {
+                        return Err(ParsingError("path should be a string".to_string()));
+                    };
+                    artifacts.push(elem.to_string());
+                }
+
+                Some(artifacts)
+            } else {
+                None
+            };
 
             let mut script = vec![];
             let serde_yml::Value::Sequence(script_val) =
@@ -111,6 +135,7 @@ impl ParserConfig {
                 stage,
                 script,
                 needs,
+                artifacts,
             );
             jobs.push(job);
         }
@@ -261,6 +286,9 @@ mod tests {
         let config = r#"
 build-job:
   image: python:3.11
+  artifacts:
+    paths:
+      - dist
   needs:
     - unit-tests
     - integration-tests
@@ -288,6 +316,7 @@ build-job:
                         "unit-tests".to_string(),
                         "integration-tests".to_string()
                     ]),
+                    artifacts: Some(vec!["dist".to_string()]),
                 }],
                 None
             )
@@ -313,6 +342,7 @@ build-job:
                     ],
                     stage: None,
                     needs: None,
+                    artifacts: None,
                 }],
                 None
             )
@@ -333,6 +363,7 @@ build-job:
                 ],
                 stage: None,
                 needs: deps,
+                artifacts: Some(vec![]),
             }
         }
 

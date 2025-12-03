@@ -1,3 +1,4 @@
+mod artifact_manager;
 mod error;
 mod executor;
 mod job;
