@@ -2,10 +2,14 @@ use std::collections::HashMap;
 
 use tokio::runtime::Runtime;
 
+use crate::artifact_manager::ArtifactManager;
 use crate::error::PipelineError;
 use crate::error::PipelineError::{ConfigFileNotReadable, ParsingError, RuntimeError};
 use crate::executor::Executor;
 use crate::job::JobConfig;
+
+const DEFAULT_WORKSPACE: &'static str = ".";
+const DEFAULT_ARTIFACT_LOCATION: &'static str = "/tmp";
 
 #[derive(Debug, PartialEq)]
 pub struct ParserConfig {
@@ -228,12 +232,13 @@ impl Pipeline {
         execution_order
     }
 
-    async fn execute_job(job: JobConfig) {
+    async fn execute_job(job: JobConfig, artifact_manager: ArtifactManager) {
         let job_name = job.name.clone();
         if let Err(e) = tokio::task::spawn_blocking(|| {
             let executor = Executor::new_with_params(None);
             let job = job;
-            if let Err(err) = executor.run(&job) {
+            let artifact_manager = artifact_manager;
+            if let Err(err) = executor.run(&job, &artifact_manager) {
                 println!("{} job failed| {}", job.name, err);
             }
         })
@@ -244,6 +249,10 @@ impl Pipeline {
     }
 
     async fn run_internal(config: ParserConfig) {
+        let artifact_manager = ArtifactManager::new_with_params(
+            DEFAULT_WORKSPACE.to_string(),
+            DEFAULT_ARTIFACT_LOCATION.to_string(),
+        );
         let jobs = config.jobs.clone();
         let jobs_by_stage = Self::get_jobs_by_stage(config.jobs);
         if let Some(_stages) = config.stages {
@@ -251,7 +260,7 @@ impl Pipeline {
             for parallel_jobs in execution_order {
                 let mut jobs_set = tokio::task::JoinSet::new();
                 for job in parallel_jobs {
-                    jobs_set.spawn(Self::execute_job(job.clone()));
+                    jobs_set.spawn(Self::execute_job(job.clone(), artifact_manager.clone()));
                 }
                 jobs_set.join_all().await;
             }
@@ -261,7 +270,7 @@ impl Pipeline {
                 let mut jobs_set = tokio::task::JoinSet::new();
 
                 for job in jobs {
-                    jobs_set.spawn(Self::execute_job(job.clone()));
+                    jobs_set.spawn(Self::execute_job(job.clone(), artifact_manager.clone()));
                 }
                 jobs_set.join_all().await;
             };

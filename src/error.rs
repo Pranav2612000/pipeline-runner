@@ -13,4 +13,16 @@ pub enum PipelineError {
 
     #[error("Failed to start runtime {0}")]
     RuntimeError(String),
+
+    #[error("Artifact save error: {0}")]
+    ArtifactError(ArtifactError),
+}
+
+#[derive(Debug, Error, Eq, PartialEq)]
+pub enum ArtifactError {
+    #[error("Artifact not found: {0}")]
+    ArtifactNotFoundError(String),
+
+    #[error("Artifact copy failed: {0}")]
+    ArtifactCopyError(String),
 }

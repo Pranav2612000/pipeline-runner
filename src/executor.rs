@@ -1,5 +1,6 @@
 use std::io::{BufRead, BufReader};
 
+use crate::artifact_manager::ArtifactManager;
 use crate::error::PipelineError;
 use crate::error::PipelineError::ExecutionError;
 use crate::job::JobConfig;
@@ -17,7 +18,11 @@ impl Executor {
         }
     }
 
-    pub fn run(&self, job: &JobConfig) -> Result<(), PipelineError> {
+    pub fn run(
+        &self,
+        job: &JobConfig,
+        artifact_manager: &ArtifactManager,
+    ) -> Result<(), PipelineError> {
         println!("Running job {:?}", job.name);
         println!("Image {:?}", job.image);
 
@@ -74,6 +79,17 @@ impl Executor {
                 subprocess::ExitStatus::Exited(code) => {
                     if code == 0 {
                         println!("[{}] SUCCESS", job.name.clone());
+
+                        if let Some(ref artifacts) = job.artifacts {
+                            let artifacts: Vec<String> = artifacts
+                                .iter()
+                                .map(|a| format!("{}/{}", self.workspace, a))
+                                .collect();
+                            let artifacts = artifacts.iter().map(|a| a.as_str()).collect();
+                            artifact_manager
+                                .save_artifacts(job.name.as_str(), artifacts)
+                                .map_err(|e| PipelineError::ArtifactError(e))?;
+                        }
                     } else {
                         println!("[{}] FAILURE CODE: {}", job.name.clone(), code);
                     }
