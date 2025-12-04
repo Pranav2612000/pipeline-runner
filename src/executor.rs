@@ -26,6 +26,14 @@ impl Executor {
         println!("Running job {:?}", job.name);
         println!("Image {:?}", job.image);
 
+        if let Some(ref needs) = job.needs {
+            for job_name in needs {
+                artifact_manager
+                    .load_artifacts(job_name.as_str(), job.name.as_str())
+                    .map_err(|e| PipelineError::ArtifactError(e))?;
+            }
+        }
+
         let merged_script = job.script.join(" && ");
 
         let cmd = vec![
