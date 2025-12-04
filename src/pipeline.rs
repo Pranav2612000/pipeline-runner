@@ -8,7 +8,7 @@ use crate::error::PipelineError::{ConfigFileNotReadable, ParsingError, RuntimeEr
 use crate::executor::Executor;
 use crate::job::JobConfig;
 
-const DEFAULT_WORKSPACE: &'static str = ".";
+const DEFAULT_WORKSPACE: &'static str = "./workbench";
 const DEFAULT_ARTIFACT_LOCATION: &'static str = "/tmp";
 
 #[derive(Debug, PartialEq)]

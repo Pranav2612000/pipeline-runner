@@ -9,7 +9,7 @@ pub struct Executor {
     workspace: String,
 }
 
-const DEFAULT_WORKSPACE: &'static str = ".";
+const DEFAULT_WORKSPACE: &'static str = "./workbench";
 
 impl Executor {
     pub fn new_with_params(workspace: Option<&str>) -> Self {
