@@ -89,4 +89,11 @@ impl ArtifactManager {
 
         Ok(())
     }
+
+    pub fn cleanup(&self) -> Result<(), ArtifactError> {
+        fs::remove_dir_all(self.root_dir.as_str())
+            .map_err(|e| ArtifactError::ArtifactCleanupError(e.to_string()))?;
+
+        Ok(())
+    }
 }

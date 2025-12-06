@@ -9,7 +9,7 @@ use crate::executor::Executor;
 use crate::job::JobConfig;
 
 const DEFAULT_WORKSPACE: &'static str = "./workbench";
-const DEFAULT_ARTIFACT_LOCATION: &'static str = "/tmp";
+const DEFAULT_ARTIFACT_LOCATION: &'static str = "/tmp/.pipeline_artifacts";
 
 #[derive(Debug, PartialEq)]
 pub struct ParserConfig {
@@ -274,6 +274,10 @@ impl Pipeline {
                 }
                 jobs_set.join_all().await;
             };
+        }
+
+        if let Err(e) = artifact_manager.cleanup() {
+            println!("Artifact cleanup failed: {:?}", e.to_string());
         }
     }
 

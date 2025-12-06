@@ -25,4 +25,7 @@ pub enum ArtifactError {
 
     #[error("Artifact copy failed: {0}")]
     ArtifactCopyError(String),
+
+    #[error("Artifact cleanup failed: {0}")]
+    ArtifactCleanupError(String),
 }
