@@ -29,6 +29,10 @@ impl ArtifactManager {
     fn copy_path(src: &str, dest: &str) -> Result<(), ArtifactError> {
         let src_path = Path::new(src);
         if src_path.is_dir() {
+            if fs::exists(dest).is_ok() {
+                let _ = fs::remove_dir_all(dest);
+                println!("Destination already exists");
+            }
             let _path = copy::copy_directory(src_path, dest)
                 .map_err(|e| ArtifactError::ArtifactCopyError(e.to_string()))?;
         } else {
