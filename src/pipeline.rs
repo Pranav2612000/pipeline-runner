@@ -12,20 +12,57 @@ const DEFAULT_WORKSPACE: &'static str = "./workbench";
 const DEFAULT_ARTIFACT_LOCATION: &'static str = "/tmp/.pipeline_artifacts";
 
 #[derive(Debug, PartialEq)]
+pub struct Variable {
+    key: String,
+    value: String,
+}
+
+#[derive(Debug, PartialEq)]
 pub struct ParserConfig {
     jobs: Vec<JobConfig>,
     stages: Option<Vec<String>>,
+    variables: Vec<Variable>,
 }
 
 impl ParserConfig {
-    pub fn new_with_params(jobs: Vec<JobConfig>, stages: Option<Vec<String>>) -> Self {
-        Self { jobs, stages }
+    pub fn new_with_params(
+        jobs: Vec<JobConfig>,
+        stages: Option<Vec<String>>,
+        variables: Vec<Variable>,
+    ) -> Self {
+        Self {
+            jobs,
+            stages,
+            variables,
+        }
     }
 
     pub fn parse_from_file(file_path: &str) -> Result<Self, PipelineError> {
         let config_str = std::fs::read_to_string(file_path)
             .map_err(|e| ConfigFileNotReadable(file_path.to_string(), e.to_string()))?;
         Self::parse_str(config_str.as_str())
+    }
+
+    pub fn substitute_vars(&self, inp: &str) -> String {
+        let mut substituted_vars = inp.to_string();
+        for var in &self.variables {
+            substituted_vars =
+                substituted_vars.replace(format!("${{{}}}", var.key).as_str(), var.value.as_str());
+        }
+
+        substituted_vars
+    }
+
+    pub fn substitute_job_config(&self, job_config: &JobConfig) -> JobConfig {
+        let mut job_config = job_config.clone();
+        job_config.image = self.substitute_vars(job_config.image.as_str());
+        job_config.script = job_config
+            .script
+            .into_iter()
+            .map(|s| self.substitute_vars(s.as_str()))
+            .collect();
+
+        job_config
     }
 
     pub fn parse_str(config_str: &str) -> Result<Self, PipelineError> {
@@ -37,6 +74,7 @@ impl ParserConfig {
 
         let mut jobs = Vec::new();
         let mut stages = None;
+        let mut variables = None;
         for (name, job_value) in jobs_value.iter() {
             let serde_yml::Value::String(name) = name else {
                 return Err(ParsingError("name should be a string".to_string()));
@@ -55,6 +93,22 @@ impl ParserConfig {
                 }
 
                 stages = Some(stages_arr);
+                continue;
+            }
+
+            if name.as_str() == "variables" {
+                let serde_yml::Value::Mapping(variables_val) = job_value else {
+                    return Err(ParsingError("variables should be a sequence".to_string()));
+                };
+
+                let mut variables_arr = vec![];
+                for (key_val, val_val) in variables_val.iter() {
+                    let key = key_val.as_str().unwrap().to_string();
+                    let value = val_val.as_str().unwrap().to_string();
+                    variables_arr.push(Variable { key, value });
+                }
+
+                variables = Some(variables_arr);
                 continue;
             }
 
@@ -143,7 +197,11 @@ impl ParserConfig {
             );
             jobs.push(job);
         }
-        Ok(Self::new_with_params(jobs, stages))
+        Ok(Self::new_with_params(
+            jobs,
+            stages,
+            variables.unwrap_or(vec![]),
+        ))
     }
 }
 
@@ -253,7 +311,11 @@ impl Pipeline {
             DEFAULT_WORKSPACE.to_string(),
             DEFAULT_ARTIFACT_LOCATION.to_string(),
         );
-        let jobs = config.jobs.clone();
+        let jobs: Vec<JobConfig> = config
+            .jobs
+            .iter()
+            .map(|j| config.substitute_job_config(j))
+            .collect();
         let jobs_by_stage = Self::get_jobs_by_stage(config.jobs);
         if let Some(_stages) = config.stages {
             let execution_order = Self::get_execution_order(jobs.iter().collect());

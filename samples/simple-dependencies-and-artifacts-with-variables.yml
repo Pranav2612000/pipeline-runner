@@ -1,0 +1,67 @@
+# pipeline.yml
+stages:
+  - build
+  - test
+  - deploy
+
+variables:
+  APP_VERSION: "1.0.0"
+  PYTHON_IMAGE: "python:3.11"
+
+build-app:
+  stage: build
+  image: ${PYTHON_IMAGE}
+  script:
+    - echo "Building version ${APP_VERSION}..."
+    - mkdir -p dist
+    - echo "app-${APP_VERSION}" > dist/app.txt
+    - echo "Build complete!"
+  artifacts:
+    paths:
+      - dist/
+
+unit-tests:
+  stage: test
+  image: ${PYTHON_IMAGE}
+  needs:
+    - build-app
+  script:
+    - echo "Running unit tests..."
+    - cat dist/app.txt
+    - sleep 2
+    - echo "Unit tests passed!"
+
+integration-tests:
+  stage: test
+  image: ${PYTHON_IMAGE}
+  needs:
+    - build-app
+  script:
+    - echo "Running integration tests..."
+    - cat dist/app.txt
+    - sleep 2
+    - echo "Integration tests passed!"
+
+deploy-staging:
+  stage: deploy
+  image: alpine:latest
+  needs:
+    - unit-tests
+    - integration-tests
+  script:
+    - echo "Deploying to staging..."
+    - cat dist/app.txt
+    - echo "Deployed to staging!"
+
+deploy-production:
+  stage: deploy
+  image: alpine:latest
+  needs:
+    - unit-tests
+    - integration-tests
+  only:
+    - main
+  script:
+    - echo "Deploying to production..."
+    - cat dist/app.txt
+    - echo "Deployed to production!"
